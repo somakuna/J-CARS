@@ -1,0 +1,89 @@
+@import 'tailwindcss';
+
+/* Tamna tema se uključuje klasom .dark na <html> (vidi src/lib/theme.tsx). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Semantičke boje. Komponente koriste samo ove nazive (bg-surface, text-muted…),
+ * pa se svijetla i tamna tema mijenjaju na jednom mjestu.
+ */
+@theme inline {
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+
+  /* Boje iz logotipa J-CARS */
+  --color-brand: #ffcc00;
+  --color-brand-strong: #f5b800;
+  --color-ink: #2b2a29;
+
+  /* Statusi rokova */
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+}
+
+:root {
+  --bg: #f5f5f3;
+  --surface: #ffffff;
+  --surface-2: #efeeeb;
+  --border: #e3e1dc;
+  --fg: #1f1e1d;
+  --muted: #6b6964;
+
+  --ok: #15803d;
+  --ok-soft: #dcfce7;
+  --warn: #c2410c;
+  --warn-soft: #ffedd5;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --info: #1d4ed8;
+  --info-soft: #dbeafe;
+
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #131312;
+  --surface: #1d1c1b;
+  --surface-2: #282725;
+  --border: #353330;
+  --fg: #f3f2ef;
+  --muted: #a3a09a;
+
+  --ok: #4ade80;
+  --ok-soft: rgb(34 197 94 / 0.14);
+  --warn: #fb923c;
+  --warn-soft: rgb(249 115 22 / 0.16);
+  --danger: #f87171;
+  --danger-soft: rgb(239 68 68 / 0.16);
+  --info: #60a5fa;
+  --info-soft: rgb(59 130 246 / 0.16);
+
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-bg font-sans text-fg antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-strong;
+  }
+}
