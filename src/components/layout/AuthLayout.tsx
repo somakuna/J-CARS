@@ -13,7 +13,7 @@ export function AuthLayout({ title, description, children }: AuthLayoutProps) {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <img src="/logo.svg" alt="J-CARS" className="size-20 rounded-2xl shadow-sm" width={80} height={80} />
-          <p className="mt-3 text-sm text-muted">Evidencija službenih vozila</p>
+          <p className="mt-3 text-sm text-muted">J-CARS System</p>
         </div>
 
         <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm sm:p-6">

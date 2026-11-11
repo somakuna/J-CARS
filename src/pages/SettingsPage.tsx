@@ -97,8 +97,8 @@ export function SettingsPage() {
               <Info className="size-5" aria-hidden="true" />
             </div>
             <div className="text-sm">
-              <p className="font-medium">J-CARS · verzija {__APP_VERSION__}</p>
-              <p className="mt-0.5 text-muted">Evidencija i praćenje službenih vozila, rokova i aktivnosti.</p>
+              <p className="font-medium">J-CARS System · verzija {__APP_VERSION__}</p>
+              <p className="mt-0.5 text-muted">Evidencija i praćenje vozila, rokova i aktivnosti.</p>
             </div>
           </div>
         </SettingsSection>

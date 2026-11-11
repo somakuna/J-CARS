@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "J-CARS – službena vozila",
+  "name": "J-CARS System",
   "short_name": "J-CARS",
-  "description": "Evidencija i praćenje službenih vozila: registracije, gume, servisi i podsjetnici.",
+  "description": "Evidencija i praćenje vozila: registracije, gume, servisi i podsjetnici.",
   "lang": "hr",
   "dir": "ltr",
   "start_url": "/",

@@ -1,6 +1,6 @@
 # J-CARS
 
-Evidencija i praćenje službenih vozila: registracije, gume, servisi, kilometraža i podsjetnici.
+J-CARS System – evidencija i praćenje vozila: registracije, gume, servisi, kilometraža i podsjetnici.
 Progressive Web App (React + Vite + TypeScript + Tailwind, Supabase, Vercel).
 
 - Specifikacija: [J-CARS.md](J-CARS.md)
