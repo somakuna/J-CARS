@@ -188,6 +188,16 @@ Postavke → Izvoz podataka (`/postavke/izvoz`):
   pri uključivanju se izrađuje nova pretplata.
 - U zaglavlju ispod „J-CARS” prikazuje se današnji datum (npr. „Srijeda, 11.11.2026”), osvježava se sam.
 
+### Nove verzije instalirane aplikacije
+
+- Service worker stranice učitava **prvo s mreže**, pa je svako pokretanje aplikacije (s internetom) odmah najnovija verzija;
+  datoteke u `/assets` imaju hash u imenu, pa stare i nove ne mogu se pomiješati.
+- Rupa: instalirana aplikacija može danima ostati otvorena u pozadini sa starim kodom. Zato build objavljuje `/version.json`
+  (`{ build }`, ista oznaka kao `__BUILD_ID__` u kodu). Aplikacija ga provjerava pri povratku u prvi plan, kad se vrati veza
+  i svakih 30 min; ako se razlikuje, prikazuje traku „Dostupna je nova verzija” s gumbom **Osvježi** (bez automatskog
+  osvježavanja, da se ne izgubi napola ispunjen obrazac).
+- Nakon izmjene `public/sw.js` treba povećati nazive spremišta (`jcars-shell-vN`, `jcars-assets-vN`).
+
 ### Sigurnosna provjera (Faza 8)
 
 - RLS uključen na svim tablicama, pravila samo za `authenticated` i `(select auth.uid()) = user_id`;

@@ -1,8 +1,9 @@
-import { Plus, WifiOff } from 'lucide-react'
+import { Plus, RefreshCw, WifiOff } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 import { Logo } from '@/components/Logo'
 import { buttonClasses } from '@/components/ui/buttonClasses'
+import { useAppUpdate } from '@/hooks/useAppUpdate'
 import { useOnline } from '@/hooks/useOnline'
 import { cn } from '@/lib/cn'
 import { NAV_ITEMS, NEW_ACTIVITY_PATH } from './navigation'
@@ -26,6 +27,7 @@ export function AppLayout() {
       <MobileHeader />
 
       <main className="mx-auto w-full max-w-6xl px-4 pt-4 pb-32 sm:px-6 lg:px-8 lg:pt-8 lg:pb-12">
+        <UpdateNotice />
         <OfflineNotice />
         <Outlet />
       </main>
@@ -146,6 +148,28 @@ function FloatingAddButton({ to }: { to: string }) {
     >
       <Plus className="size-7" aria-hidden="true" />
     </Link>
+  )
+}
+
+/** Objavljena je novija verzija nego što je otvorena (npr. instalirana aplikacija danima u pozadini). */
+function UpdateNotice() {
+  const updateAvailable = useAppUpdate()
+  if (!updateAvailable) return null
+  return (
+    <div
+      role="status"
+      className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-info/30 bg-info-soft px-3.5 py-2.5 text-sm text-info"
+    >
+      <RefreshCw className="size-4 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 flex-1">Dostupna je nova verzija aplikacije.</span>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className="rounded-lg bg-info px-3 py-1.5 font-medium text-white dark:text-ink"
+      >
+        Osvježi
+      </button>
+    </div>
   )
 }
 

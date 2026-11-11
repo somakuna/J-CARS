@@ -61,6 +61,20 @@ function apiDevServer(mode: string): Plugin {
   }
 }
 
+/** Oznaka ovog builda – svaka objava dobiva novu, pa otvorena aplikacija prepozna da postoji novija verzija. */
+const BUILD_ID = Date.now().toString(36)
+
+/** Uz build objavljuje /version.json s oznakom builda (provjerava ga lib/appUpdate.ts). */
+function buildVersionFile(): Plugin {
+  return {
+    name: 'jcars-version-file',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: BUILD_ID, version: pkg.version }) })
+    },
+  }
+}
+
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
@@ -72,7 +86,7 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), tailwindcss(), apiDevServer(mode)],
+  plugins: [react(), tailwindcss(), apiDevServer(mode), buildVersionFile()],
   build: {
     rolldownOptions: {
       output: {
@@ -88,6 +102,7 @@ export default defineConfig(({ mode }) => ({
   },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
   },
   resolve: {
     alias: {
