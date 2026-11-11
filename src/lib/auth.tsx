@@ -2,11 +2,12 @@ import type { Session } from '@supabase/supabase-js'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AuthContext } from './authContext'
+import { disablePushOnDevice } from './push'
 import { supabase } from './supabase'
 
 export const PASSWORD_RESET_PATH = '/nova-lozinka'
 
-/** Prati prijavu administratora (Supabase Auth). Sesija se pamti na uređaju. */
+/** Prati prijavu korisnika (Supabase Auth). Sesija se pamti na uređaju. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
@@ -45,6 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    // Nakon odjave ovaj uređaj ne smije primati tuđe podsjetnike (npr. kad se prijavi drugi korisnik).
+    await disablePushOnDevice().catch(() => undefined)
     // 'local' odjavljuje samo ovaj uređaj; ostali ostaju prijavljeni.
     const { error } = await supabase.auth.signOut({ scope: 'local' })
     if (error) throw error

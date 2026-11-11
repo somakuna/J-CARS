@@ -7,10 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { buttonClasses } from '@/components/ui/buttonClasses'
 import { TextField } from '@/components/ui/Field'
 import { FullScreenLoader, Spinner } from '@/components/ui/Spinner'
-import { useAuth } from '@/lib/authContext'
+import { MIN_PASSWORD_LENGTH as MIN_LENGTH, useAuth } from '@/lib/authContext'
 import { errorMessage } from '@/lib/errors'
-
-const MIN_LENGTH = 8
 
 /** Postavljanje nove lozinke nakon otvaranja poveznice iz e-maila. */
 export function ResetPasswordPage() {

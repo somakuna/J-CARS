@@ -6,7 +6,7 @@ const SW_URL = '/sw.js'
 
 /**
  * Stanje push obavijesti na OVOM uređaju:
- *  - on / off       – pretplata postoji / ne postoji
+ *  - on / off       – pretplata ovog uređaja za prijavljenog korisnika postoji / ne postoji
  *  - denied         – korisnik je blokirao obavijesti u pregledniku
  *  - needs-install  – iPhone/iPad: push radi tek kad je aplikacija dodana na početni zaslon (iOS 16.4+)
  *  - unsupported    – preglednik ne podržava push
@@ -45,7 +45,12 @@ export async function getDevicePushState(): Promise<DevicePushState> {
   if (!VAPID_PUBLIC_KEY) return 'not-configured'
   if (!pushSupported()) return isIos() && !isStandalone() ? 'needs-install' : 'unsupported'
   if (Notification.permission === 'denied') return 'denied'
-  return (await currentSubscription()) ? 'on' : 'off'
+  const subscription = await currentSubscription()
+  if (!subscription) return 'off'
+  // Pretplata preglednika može pripadati drugom korisniku koji je ovdje bio prijavljen (RLS ga ne vraća).
+  const { data, error } = await supabase.from('push_subscriptions').select('id').eq('endpoint', subscription.endpoint).maybeSingle()
+  if (error) return 'on' // bez veze ne možemo provjeriti – pretpostavi da je uključeno
+  return data ? 'on' : 'off'
 }
 
 /** Traži dopuštenje, pretplaćuje uređaj i sprema pretplatu u bazu. */
@@ -70,14 +75,25 @@ export async function enablePushOnDevice(): Promise<void> {
   }
   subscription ??= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: serverKey })
 
+  const { error } = await saveSubscription(subscription)
+  if (!error) return
+  // 42501: pretplatu ovog preglednika spremio je drugi korisnik – napravi novu, samo za prijavljenog.
+  if (error.code !== '42501') throw error
+  await subscription.unsubscribe()
+  const fresh = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: serverKey })
+  const retry = await saveSubscription(fresh)
+  if (retry.error) throw retry.error
+}
+
+function saveSubscription(subscription: PushSubscription) {
   const json = subscription.toJSON()
   if (!json.endpoint || !json.keys?.p256dh || !json.keys.auth) throw new UserFacingError('Preglednik nije vratio ispravnu pretplatu.')
-
-  const { error } = await supabase.from('push_subscriptions').upsert(
-    { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth, device_info: describeDevice() },
-    { onConflict: 'endpoint' },
-  )
-  if (error) throw error
+  return supabase
+    .from('push_subscriptions')
+    .upsert(
+      { endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth, device_info: describeDevice() },
+      { onConflict: 'endpoint' },
+    )
 }
 
 /** Odjavljuje ovaj uređaj (ostali uređaji i dalje primaju obavijesti). */

@@ -9,7 +9,8 @@ export type TireType = 'summer' | 'winter' | 'all_season'
 export type ServiceType = 'minor' | 'major' | 'repair' | 'other'
 export type ThemeSetting = 'system' | 'light' | 'dark'
 export type DeadlineType = 'registration' | 'service' | 'activity' | 'test'
-export type NotificationChannel = 'email' | 'push'
+/** Obavijesti se šalju samo kao push poruke (e-mail je uklonjen). */
+export type NotificationChannel = 'push'
 export type NotificationStatus = 'sent' | 'failed' | 'skipped'
 export type ReminderInterval = 30 | 14 | 7 | 1 | 0
 
@@ -65,8 +66,6 @@ type VehicleOverviewRow = VehicleRow & {
 type SettingsRow = {
   id: string
   user_id: string
-  email_address: string | null
-  email_notifications_enabled: boolean
   push_notifications_enabled: boolean
   reminder_30_days: boolean
   reminder_14_days: boolean

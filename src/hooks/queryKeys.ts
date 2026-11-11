@@ -20,3 +20,7 @@ export const settingsKeys = {
   settings: ['settings'] as const,
   logs: ['notification-logs'] as const,
 }
+
+export const exportKeys = {
+  all: ['export'] as const,
+}

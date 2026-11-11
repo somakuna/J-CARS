@@ -1,10 +1,9 @@
-import { ArrowLeft, BellRing, Clock, Mail, Send, Smartphone } from 'lucide-react'
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { ArrowLeft, BellRing, Clock, Send, Smartphone, type LucideIcon } from 'lucide-react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
-import { TextField } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorState, Skeleton } from '@/components/ui/States'
@@ -12,7 +11,6 @@ import { StatusBadge, type BadgeTone } from '@/components/ui/StatusBadge'
 import { Switch } from '@/components/ui/Switch'
 import type { NotificationLogWithVehicle, SettingsPatch } from '@/data/settings'
 import { useNotificationLogs, useSendTestNotification, useSettings, useUpdateSettings } from '@/hooks/useSettings'
-import { useAuth } from '@/lib/authContext'
 import { cn } from '@/lib/cn'
 import { errorMessage } from '@/lib/errors'
 import { disablePushOnDevice, enablePushOnDevice, getDevicePushState, isIos, type DevicePushState } from '@/lib/push'
@@ -20,7 +18,6 @@ import { useToast } from '@/lib/toastContext'
 import type { NotificationStatus, Settings } from '@/types/database'
 import { formatDate, formatDateTime } from '@shared/dates'
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const REMINDER_OPTIONS: Array<{ key: keyof Settings & `reminder_${string}`; label: string }> = [
   { key: 'reminder_30_days', label: '30 dana prije' },
@@ -39,7 +36,7 @@ export function NotificationSettingsPage() {
         <ArrowLeft className="size-4" aria-hidden="true" />
         Postavke
       </Link>
-      <PageHeader title="Obavijesti" description="E-mail i push podsjetnici prije rokova" />
+      <PageHeader title="Obavijesti" description="Push podsjetnici prije rokova" />
 
       {isPending ? (
         <div className="space-y-4">
@@ -75,7 +72,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
     [settings.id, update, showToast],
   )
 
-  const noChannel = !settings.email_notifications_enabled && !settings.push_notifications_enabled
+  const noChannel = !settings.push_notifications_enabled
   const noInterval = REMINDER_OPTIONS.every(({ key }) => !settings[key])
 
   return (
@@ -83,12 +80,11 @@ function SettingsForm({ settings }: { settings: Settings }) {
       {(noChannel || noInterval) && (
         <Alert tone="info">
           {noChannel
-            ? 'E-mail i push obavijesti su isključene – podsjetnici se neće slati.'
+            ? 'Push obavijesti su isključene – podsjetnici se neće slati.'
             : 'Nijedan podsjetnik nije uključen – obavijesti se neće slati.'}
         </Alert>
       )}
 
-      <EmailSection settings={settings} save={save} />
       <PushSection settings={settings} save={save} />
 
       <Card>
@@ -122,69 +118,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
 // ---------------------------------------------------------------------------
 
 type Save = (patch: SettingsPatch, successMessage?: string) => void
-
-function EmailSection({ settings, save }: { settings: Settings; save: Save }) {
-  const { user } = useAuth()
-  const { showToast } = useToast()
-  const test = useSendTestNotification()
-  const [address, setAddress] = useState(settings.email_address ?? '')
-  const [addressError, setAddressError] = useState<string | null>(null)
-  const changed = address.trim() !== (settings.email_address ?? '')
-
-  function saveAddress(event: FormEvent) {
-    event.preventDefault()
-    const value = address.trim()
-    if (value && !EMAIL_PATTERN.test(value)) {
-      setAddressError('Unesite ispravnu e-mail adresu.')
-      return
-    }
-    setAddressError(null)
-    save({ email_address: value || null }, 'E-mail adresa je spremljena.')
-  }
-
-  function sendTest() {
-    test.mutate('email', {
-      onSuccess: (message) => showToast(message),
-      onError: (error) => showToast(errorMessage(error), 'danger'),
-    })
-  }
-
-  return (
-    <Card>
-      <SectionTitle icon={Mail} title="E-mail obavijesti" />
-      <div className="space-y-4 px-4 pb-4 sm:px-5">
-        <Switch
-          label="Šalji podsjetnike e-mailom"
-          checked={settings.email_notifications_enabled}
-          onChange={(checked) => save({ email_notifications_enabled: checked })}
-        />
-        <form onSubmit={saveAddress} noValidate className="flex flex-col gap-2 sm:flex-row sm:items-start">
-          <TextField
-            label="Adresa primatelja"
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder={user?.email ?? 'ime@primjer.hr'}
-            error={addressError ?? undefined}
-            hint={`Ako je prazno, koristi se adresa za prijavu${user?.email ? ` (${user.email})` : ''}.`}
-            className="flex-1"
-          />
-          {changed && (
-            <Button type="submit" className="sm:mt-7">
-              Spremi
-            </Button>
-          )}
-        </form>
-        <Button variant="secondary" onClick={sendTest} disabled={test.isPending || changed}>
-          {test.isPending ? <Spinner className="size-4" /> : <Send className="size-4" aria-hidden="true" />}
-          Pošalji probni e-mail
-        </Button>
-      </div>
-    </Card>
-  )
-}
 
 const DEVICE_STATE_TEXT: Record<DevicePushState, { label: string; tone: BadgeTone; help?: string }> = {
   on: { label: 'Uključeno', tone: 'ok' },
@@ -241,7 +174,7 @@ function PushSection({ settings, save }: { settings: Settings; save: Save }) {
   }
 
   function sendTest() {
-    test.mutate('push', {
+    test.mutate(undefined, {
       onSuccess: (message) => showToast(message),
       onError: (error) => showToast(errorMessage(error), 'danger'),
     })
@@ -335,7 +268,6 @@ function LogsSection() {
 
 function LogRow({ log }: { log: NotificationLogWithVehicle }) {
   const status = STATUS_TEXT[log.status]
-  const Icon = log.notification_type === 'email' ? Mail : BellRing
   const details = [
     log.vehicle && `${log.vehicle.registration_number} · ${log.vehicle.make} ${log.vehicle.model}`,
     log.deadline_date && `rok ${formatDate(log.deadline_date)}`,
@@ -344,7 +276,7 @@ function LogRow({ log }: { log: NotificationLogWithVehicle }) {
 
   return (
     <li className="flex gap-3 px-4 py-3 sm:px-5">
-      <Icon className={cn('mt-0.5 size-4 shrink-0', log.status === 'failed' ? 'text-danger' : 'text-muted')} aria-hidden="true" />
+      <BellRing className={cn('mt-0.5 size-4 shrink-0', log.status === 'failed' ? 'text-danger' : 'text-muted')} aria-hidden="true" />
       <div className="min-w-0 flex-1 text-sm">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <p className="font-medium">{DEADLINE_TEXT[log.deadline_type]}</p>
@@ -361,7 +293,7 @@ function LogRow({ log }: { log: NotificationLogWithVehicle }) {
   )
 }
 
-function SectionTitle({ icon: Icon, title }: { icon: typeof Mail; title: string }): ReactNode {
+function SectionTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }): ReactNode {
   return (
     <h2 className="flex items-center gap-2 px-4 pt-4 pb-3 text-base font-semibold sm:px-5">
       <Icon className="size-5 text-muted" aria-hidden="true" />

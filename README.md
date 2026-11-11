@@ -23,12 +23,30 @@ npm run dev                  # http://localhost:5173
 | `npm run preview` | lokalni pregled produkcijskog builda |
 | `npm run lint` | oxlint |
 
-## Obavijesti (e-mail i push)
+## Push obavijesti
 
 - `/api/cron/check-deadlines` – dnevna provjera rokova; Vercel Cron je pokreće svaki dan u 06:00 UTC (`vercel.json`).
   Ručno: `curl -H "Authorization: Bearer $CRON_SECRET" https://<domena>/api/cron/check-deadlines`
-- `/api/notifications/test` – probna obavijest (gumbi u Postavke → Obavijesti).
+- `/api/notifications/test` – probna push obavijest (gumb u Postavke → Obavijesti).
 - Potrebne varijable (Vercel → Settings → Environment Variables, bez prefiksa `VITE_` osim javnog VAPID ključa):
-  `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
-  `VAPID_SUBJECT`, `CRON_SECRET`, `APP_URL` te `VITE_VAPID_PUBLIC_KEY` (isti kao `VAPID_PUBLIC_KEY`).
-- Bez potvrđene domene u Resendu `EMAIL_FROM` mora biti `J-CARS <onboarding@resend.dev>`, a e-mail stiže samo na adresu vlasnika Resend računa.
+  `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET`
+  te `VITE_VAPID_PUBLIC_KEY` (isti kao `VAPID_PUBLIC_KEY`).
+
+## Korisnici
+
+Javna registracija je isključena. Novog korisnika dodaje administrator: Supabase → Authentication → Users → Add user →
+Create new user (e-mail, lozinka, uključiti „Auto Confirm User”). Svaki korisnik vidi samo svoja vozila i aktivnosti.
+
+## Izvoz podataka
+
+Postavke → Izvoz podataka: vozila i aktivnosti kao CSV (za Excel, `;` i UTF-8) te sigurnosna kopija svih podataka u JSON-u.
+
+## Objava na Vercelu
+
+1. Vercel → Add New → Project → uvoz Git repozitorija (Framework: Vite, build `npm run build`, izlaz `dist`).
+2. Prije prvog deploya: Settings → Environment Variables – sve varijable iz `.env.example`
+   (`VITE_*` se ugrađuju u build, ostale su samo za `/api`).
+3. Supabase → Authentication → URL Configuration: Site URL = adresa na Vercelu, Redirect URLs dodati `https://<domena>/**`
+   (poveznica za novu lozinku).
+4. Nakon promjene varijabli: Deployments → Redeploy. Svaki `git push` na `main` objavljuje novu verziju.
+5. Push obavijesti treba ponovno uključiti na svakom uređaju (pretplata vrijedi samo za adresu na kojoj je nastala).

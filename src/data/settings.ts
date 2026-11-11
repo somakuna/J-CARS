@@ -1,6 +1,6 @@
 import { UserFacingError } from '@/lib/errors'
 import { supabase } from '@/lib/supabase'
-import type { NotificationChannel, NotificationLog, Settings, Vehicle } from '@/types/database'
+import type { NotificationLog, Settings, Vehicle } from '@/types/database'
 
 export type SettingsPatch = Partial<Omit<Settings, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
 export type NotificationLogWithVehicle = NotificationLog & {
@@ -31,8 +31,8 @@ export async function fetchNotificationLogs(limit = 20): Promise<NotificationLog
   return data as NotificationLogWithVehicle[]
 }
 
-/** Probna obavijest preko /api (tajni ključevi postoje samo na poslužitelju). */
-export async function sendTestNotification(channel: NotificationChannel): Promise<string> {
+/** Probna push obavijest preko /api (tajni ključevi postoje samo na poslužitelju). */
+export async function sendTestNotification(): Promise<string> {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
   if (!token) throw new UserFacingError('Prijava je istekla. Prijavite se ponovno.')
@@ -41,8 +41,7 @@ export async function sendTestNotification(channel: NotificationChannel): Promis
   try {
     response = await fetch('/api/notifications/test', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ channel }),
+      headers: { Authorization: `Bearer ${token}` },
     })
   } catch (error) {
     throw new UserFacingError('Nema veze s poslužiteljem. Provjerite internetsku vezu.', { cause: error })

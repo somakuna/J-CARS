@@ -46,7 +46,7 @@ export function SettingsPage() {
           <SettingsRow
             icon={Bell}
             title="Obavijesti"
-            description="E-mail i push obavijesti, podsjetnici prije rokova"
+            description="Push obavijesti i podsjetnici prije rokova"
             to="/postavke/obavijesti"
           />
         </SettingsSection>
@@ -86,8 +86,8 @@ export function SettingsPage() {
           <SettingsRow
             icon={Download}
             title="Izvoz podataka"
-            description="CSV izvoz vozila i aktivnosti – uskoro"
-            disabled
+            description="Vozila i aktivnosti za Excel (CSV), sigurnosna kopija (JSON)"
+            to="/postavke/izvoz"
           />
         </SettingsSection>
 
@@ -186,7 +186,7 @@ function InstallSection() {
               <strong className="text-fg">Windows, macOS, Linux</strong> (Chrome, Edge, Firefox, Safari 16+) – rade dok je
               preglednik pokrenut.
             </li>
-            <li>Ako obavijesti blokirate u pregledniku ili sustavu, ne stižu – u tom slučaju i dalje stiže e-mail.</li>
+            <li>Ako obavijesti blokirate u pregledniku ili sustavu, podsjetnici na taj uređaj ne stižu.</li>
           </ul>
         </details>
       </div>
@@ -217,7 +217,7 @@ function AccountSection() {
           <UserRound className="size-5" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1 text-sm">
-          <p className="font-medium">Administrator</p>
+          <p className="font-medium">Prijavljeni korisnik</p>
           <p className="mt-0.5 truncate text-muted">{user?.email}</p>
         </div>
         <Button variant="secondary" onClick={handleSignOut} disabled={signingOut}>

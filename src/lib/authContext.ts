@@ -1,6 +1,9 @@
 import type { Session, User } from '@supabase/supabase-js'
 import { createContext, useContext } from 'react'
 
+/** Najmanja duljina nove lozinke. */
+export const MIN_PASSWORD_LENGTH = 8
+
 export interface AuthContextValue {
   session: Session | null
   user: User | null

@@ -1,10 +1,8 @@
 import type { User } from '@supabase/supabase-js'
-import type { Database, NotificationChannel, Settings } from '../../src/types/database.js'
+import type { Database, Settings } from '../../src/types/database.js'
 import { buildObligations } from '../../shared/obligations.js'
 import { enabledIntervals, planReminders, reminderKey, reminderText, type PlannedReminder } from '../../shared/reminders.js'
-import { sendEmail } from './email.js'
-import { env } from './env.js'
-import { reminderEmail, reminderPush, testEmail, testPush, type ReminderItem } from './messages.js'
+import { reminderPush, testPush, type ReminderItem } from './messages.js'
 import { pushRecipient, sendPush, type PushPayload } from './push.js'
 import type { AdminClient } from './supabaseAdmin.js'
 
@@ -13,7 +11,6 @@ type LogInsert = Database['public']['Tables']['notification_logs']['Insert']
 export interface UserResult {
   userId: string
   planned: number
-  email: 'sent' | 'failed' | 'disabled' | 'nothing'
   push: 'sent' | 'failed' | 'disabled' | 'nothing' | 'no_devices'
   error?: string
 }
@@ -24,22 +21,21 @@ function message(error: unknown): string {
 
 /** Dnevna provjera rokova za sve korisnike. Greška kod jednog korisnika ne zaustavlja ostale. */
 export async function runDailyCheck(db: AdminClient, today: string): Promise<UserResult[]> {
-  const { data: settingsRows, error } = await db.from('settings').select('*')
+  const { data: settingsRows, error } = await db.from('settings').select('*').eq('push_notifications_enabled', true)
   if (error) throw error
   const results: UserResult[] = []
   for (const settings of settingsRows) {
     try {
       results.push(await processUser(db, settings, today))
     } catch (err) {
-      results.push({ userId: settings.user_id, planned: 0, email: 'failed', push: 'failed', error: message(err) })
+      results.push({ userId: settings.user_id, planned: 0, push: 'failed', error: message(err) })
     }
   }
   return results
 }
 
 async function processUser(db: AdminClient, settings: Settings, today: string): Promise<UserResult> {
-  const result: UserResult = { userId: settings.user_id, planned: 0, email: 'disabled', push: 'disabled' }
-  if (!settings.email_notifications_enabled && !settings.push_notifications_enabled) return result
+  const result: UserResult = { userId: settings.user_id, planned: 0, push: 'nothing' }
 
   const [vehiclesRes, activitiesRes] = await Promise.all([
     db.from('vehicle_overview').select('*').eq('user_id', settings.user_id).eq('is_active', true),
@@ -57,11 +53,7 @@ async function processUser(db: AdminClient, settings: Settings, today: string): 
   const vehicles = new Map(vehiclesRes.data.map((v) => [v.id, v]))
   const planned = planReminders(buildObligations(vehiclesRes.data, activitiesRes.data, today), enabledIntervals(settings))
   result.planned = planned.length
-  if (planned.length === 0) {
-    result.email = settings.email_notifications_enabled ? 'nothing' : 'disabled'
-    result.push = settings.push_notifications_enabled ? 'nothing' : 'disabled'
-    return result
-  }
+  if (planned.length === 0) return result
 
   // Što je za ove rokove već poslano (isti ključ kao jedinstveni indeks u bazi).
   const { data: sentLogs, error: logsError } = await db
@@ -77,109 +69,81 @@ async function processUser(db: AdminClient, settings: Settings, today: string): 
       reminderKey(l.vehicle_id ?? '', l.deadline_type, l.activity_id, l.deadline_date ?? '', l.reminder_interval ?? -1, l.notification_type),
     ),
   )
-  const pending = (channel: NotificationChannel) =>
-    planned.filter(
-      (p) => !sent.has(reminderKey(p.obligation.vehicleId, p.deadlineType, p.obligation.activityId, p.deadlineDate, p.interval, channel)),
-    )
+  const pending = planned.filter(
+    (p) => !sent.has(reminderKey(p.obligation.vehicleId, p.deadlineType, p.obligation.activityId, p.deadlineDate, p.interval, 'push')),
+  )
+  if (pending.length === 0) return result
 
-  const toItem = (p: PlannedReminder): ReminderItem => {
-    const v = vehicles.get(p.obligation.vehicleId)
-    return {
-      vehicleId: p.obligation.vehicleId,
-      vehicleName: v ? `${v.make} ${v.model}` : 'Vozilo',
-      plate: v?.registration_number ?? '',
-      text: reminderText(p.obligation),
-      tone: p.obligation.tone,
-    }
+  const toItem = (p: PlannedReminder): ReminderItem => ({
+    vehicleId: p.obligation.vehicleId,
+    plate: vehicles.get(p.obligation.vehicleId)?.registration_number ?? 'Vozilo',
+    text: reminderText(p.obligation),
+  })
+
+  // Jedna obavijest na svaki prijavljeni uređaj, sa svim rokovima kojima je danas na redu podsjetnik.
+  const outcome = await pushToUser(db, settings.user_id, reminderPush(pending.map(toItem)))
+  if (outcome.devices === 0) {
+    result.push = 'no_devices'
+    return result
   }
-  const logRows = (items: PlannedReminder[], channel: NotificationChannel, status: 'sent' | 'failed', recipient: string | null, error?: string): LogInsert[] =>
-    items.map((p) => ({
+  const ok = outcome.sent > 0
+  const recipient = `push: ${outcome.sent}/${outcome.devices} uređaja`
+  await insertLogs(
+    db,
+    pending.map((p) => ({
       user_id: settings.user_id,
       vehicle_id: p.obligation.vehicleId,
       activity_id: p.obligation.activityId,
       deadline_type: p.deadlineType,
       deadline_date: p.deadlineDate,
       reminder_interval: p.interval,
-      notification_type: channel,
-      status,
+      notification_type: 'push',
+      status: ok ? 'sent' : 'failed',
       recipient,
-      error_message: error ?? null,
-    }))
-
-  // E-mail: jedna poruka sa svim rokovima kojima je danas na redu podsjetnik.
-  if (settings.email_notifications_enabled) {
-    const items = pending('email')
-    if (items.length === 0) result.email = 'nothing'
-    else {
-      const to = await recipientEmail(db, settings)
-      try {
-        if (!to) throw new Error('Nema e-mail adrese primatelja.')
-        await sendEmail({ to, ...reminderEmail(items.map(toItem), env.appUrl()) })
-        await insertLogs(db, logRows(items, 'email', 'sent', to))
-        result.email = 'sent'
-      } catch (err) {
-        await insertLogs(db, logRows(items, 'email', 'failed', to, message(err)))
-        result.email = 'failed'
-        result.error = message(err)
-      }
-    }
-  }
-
-  // Push: jedna obavijest na svaki prijavljeni uređaj.
-  if (settings.push_notifications_enabled) {
-    const items = pending('push')
-    if (items.length === 0) result.push = 'nothing'
-    else {
-      const outcome = await pushToUser(db, settings.user_id, reminderPush(items.map(toItem)))
-      if (outcome.devices === 0) result.push = 'no_devices'
-      else {
-        const ok = outcome.sent > 0
-        await insertLogs(db, logRows(items, 'push', ok ? 'sent' : 'failed', `push: ${outcome.sent}/${outcome.devices} uređaja`, outcome.error))
-        result.push = ok ? 'sent' : 'failed'
-        if (!ok) result.error = outcome.error
-      }
-    }
-  }
-
+      error_message: ok ? null : (outcome.error ?? null),
+    })),
+  )
+  result.push = ok ? 'sent' : 'failed'
+  if (!ok) result.error = outcome.error
   return result
 }
 
-/** Probna obavijest za prijavljenog korisnika (gumb u postavkama). Vraća poruku za prikaz. */
-export async function sendTestNotification(db: AdminClient, user: User, channel: NotificationChannel): Promise<string> {
-  const { data: settings, error } = await db.from('settings').select('*').eq('user_id', user.id).maybeSingle()
+/** Najmanji razmak između dvije probne obavijesti (zaštita od zatrpavanja uređaja). */
+export const TEST_COOLDOWN_SECONDS = 60
+
+/** Koliko još sekundi treba pričekati do sljedeće probne obavijesti; 0 ako se smije poslati. */
+export async function testCooldown(db: AdminClient, userId: string, now = Date.now()): Promise<number> {
+  const since = new Date(now - TEST_COOLDOWN_SECONDS * 1000).toISOString()
+  const { data, error } = await db
+    .from('notification_logs')
+    .select('sent_at')
+    .eq('user_id', userId)
+    .eq('deadline_type', 'test')
+    .gt('sent_at', since)
+    .order('sent_at', { ascending: false })
+    .limit(1)
   if (error) throw error
+  if (data.length === 0) return 0
+  const elapsed = (now - new Date(data[0].sent_at).getTime()) / 1000
+  return Math.max(1, Math.ceil(TEST_COOLDOWN_SECONDS - elapsed))
+}
 
-  if (channel === 'email') {
-    const to = settings?.email_address || user.email || null
-    if (!to) throw new Error('Upišite e-mail adresu za obavijesti.')
-    try {
-      await sendEmail({ to, ...testEmail(env.appUrl()) })
-      await insertLogs(db, [testLog(user.id, 'email', 'sent', to)])
-      return `Probni e-mail poslan je na ${to}.`
-    } catch (err) {
-      await insertLogs(db, [testLog(user.id, 'email', 'failed', to, message(err))])
-      throw err
-    }
-  }
-
+/** Probna push obavijest na sve uređaje prijavljenog korisnika. Vraća poruku za prikaz. */
+export async function sendTestNotification(db: AdminClient, user: User): Promise<string> {
   const outcome = await pushToUser(db, user.id, testPush())
   if (outcome.devices === 0) throw new Error('Nijedan uređaj nema uključene push obavijesti. Uključite ih na ovom uređaju.')
   const recipient = `push: ${outcome.sent}/${outcome.devices} uređaja`
   if (outcome.sent === 0) {
-    await insertLogs(db, [testLog(user.id, 'push', 'failed', recipient, outcome.error)])
+    await insertLogs(db, [testLog(user.id, 'failed', recipient, outcome.error)])
     throw new Error(outcome.error ?? 'Push obavijest nije poslana.')
   }
-  await insertLogs(db, [testLog(user.id, 'push', 'sent', recipient)])
-  return outcome.devices === 1 ? 'Probna push obavijest je poslana.' : `Probna push obavijest poslana je na ${outcome.sent} od ${outcome.devices} uređaja.`
+  await insertLogs(db, [testLog(user.id, 'sent', recipient)])
+  return outcome.devices === 1
+    ? 'Probna push obavijest je poslana.'
+    : `Probna push obavijest poslana je na ${outcome.sent} od ${outcome.devices} uređaja.`
 }
 
 // ---------------------------------------------------------------------------
-
-async function recipientEmail(db: AdminClient, settings: Settings): Promise<string | null> {
-  if (settings.email_address) return settings.email_address
-  const { data } = await db.auth.admin.getUserById(settings.user_id)
-  return data.user?.email ?? null
-}
 
 /** Šalje na sve uređaje korisnika; brisanje pretplata kojih više nema (404/410). */
 async function pushToUser(db: AdminClient, userId: string, payload: PushPayload) {
@@ -204,11 +168,11 @@ async function pushToUser(db: AdminClient, userId: string, payload: PushPayload)
   return { devices: subscriptions.length, sent, error: lastError }
 }
 
-function testLog(userId: string, channel: NotificationChannel, status: 'sent' | 'failed', recipient: string | null, error?: string): LogInsert {
+function testLog(userId: string, status: 'sent' | 'failed', recipient: string | null, error?: string): LogInsert {
   return {
     user_id: userId,
     deadline_type: 'test',
-    notification_type: channel,
+    notification_type: 'push',
     status,
     recipient,
     error_message: error ?? null,

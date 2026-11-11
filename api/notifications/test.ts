@@ -1,9 +1,9 @@
 import { ConfigError } from '../_lib/env.js'
-import { sendTestNotification } from '../_lib/notify.js'
+import { sendTestNotification, testCooldown } from '../_lib/notify.js'
 import { createAdminClient, userFromRequest } from '../_lib/supabaseAdmin.js'
 
 /**
- * Probna obavijest za prijavljenog korisnika: POST { "channel": "email" | "push" }
+ * Probna push obavijest za prijavljenog korisnika: POST
  * s „Authorization: Bearer <Supabase access token>”.
  */
 export async function POST(request: Request): Promise<Response> {
@@ -12,13 +12,15 @@ export async function POST(request: Request): Promise<Response> {
     const user = await userFromRequest(db, request)
     if (!user) return Response.json({ error: 'Prijava je istekla. Prijavite se ponovno.' }, { status: 401 })
 
-    const body = (await request.json().catch(() => null)) as { channel?: unknown } | null
-    const channel = body?.channel
-    if (channel !== 'email' && channel !== 'push') {
-      return Response.json({ error: 'Neispravan zahtjev.' }, { status: 400 })
+    const wait = await testCooldown(db, user.id)
+    if (wait > 0) {
+      return Response.json(
+        { error: `Probna obavijest je upravo poslana. Pričekajte još ${wait} s.` },
+        { status: 429, headers: { 'Retry-After': String(wait) } },
+      )
     }
 
-    const message = await sendTestNotification(db, user, channel)
+    const message = await sendTestNotification(db, user)
     return Response.json({ message })
   } catch (error) {
     console.error('[test] slanje nije uspjelo', error)

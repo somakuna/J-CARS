@@ -1,7 +1,14 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { todayISO } from '../../shared/dates.js'
 import { ConfigError, env } from '../_lib/env.js'
 import { runDailyCheck } from '../_lib/notify.js'
 import { createAdminClient } from '../_lib/supabaseAdmin.js'
+
+/** Usporedba u konstantnom vremenu – trajanje provjere ne otkriva dio tajne. */
+function sameSecret(received: string, expected: string): boolean {
+  const digest = (value: string) => createHash('sha256').update(value).digest()
+  return timingSafeEqual(digest(received), digest(expected))
+}
 
 /**
  * Dnevna provjera rokova – pokreće je Vercel Cron (vercel.json → crons).
@@ -10,7 +17,7 @@ import { createAdminClient } from '../_lib/supabaseAdmin.js'
  */
 export async function GET(request: Request): Promise<Response> {
   try {
-    if (request.headers.get('authorization') !== `Bearer ${env.cronSecret()}`) {
+    if (!sameSecret(request.headers.get('authorization') ?? '', `Bearer ${env.cronSecret()}`)) {
       return Response.json({ error: 'Neovlašten pristup.' }, { status: 401 })
     }
     const today = todayISO()

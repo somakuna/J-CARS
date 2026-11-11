@@ -3,7 +3,7 @@ import type { Obligation } from './obligations.js'
 import { relativeDaysLabel, relativeDueLabel } from './status.js'
 
 /**
- * Podsjetnici za obavijesti (e-mail i push). Dnevna provjera za svaku obvezu
+ * Podsjetnici za push obavijesti. Dnevna provjera za svaku obvezu
  * s datumom bira NAJMANJI uključeni interval koji je dosegnut (dana do roka ≤ interval)
  * i šalje ga samo ako za isti rok, interval i kanal još ništa nije poslano.
  * Tako propušteni dan ne gubi podsjetnik, a isti se nikad ne šalje dvaput.

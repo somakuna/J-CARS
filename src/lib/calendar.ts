@@ -12,6 +12,15 @@ export const MONTH_NAMES = [
   'Srpanj', 'Kolovoz', 'Rujan', 'Listopad', 'Studeni', 'Prosinac',
 ]
 export const WEEKDAY_SHORT = ['Pon', 'Uto', 'Sri', 'Čet', 'Pet', 'Sub', 'Ned']
+export const WEEKDAY_NAMES = ['Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak', 'Subota', 'Nedjelja']
+
+/** 'YYYY-MM-DD' → „Srijeda, 11.11.2026” */
+export function weekdayDateLabel(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  // getUTCDay: 0 = nedjelja → pomak na tjedan od ponedjeljka.
+  const weekday = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7
+  return `${WEEKDAY_NAMES[weekday]}, ${formatDate(iso)}`
+}
 
 const pad = (n: number) => String(n).padStart(2, '0')
 

@@ -1,7 +1,9 @@
+import { useToday } from '@/hooks/useToday'
+import { weekdayDateLabel } from '@/lib/calendar'
 import { cn } from '@/lib/cn'
 
 interface LogoProps {
-  /** Prikaži i tekst „J-CARS” uz znak. */
+  /** Prikaži i tekst „J-CARS” (s današnjim datumom) uz znak. */
   withText?: boolean
   className?: string
 }
@@ -13,9 +15,18 @@ export function Logo({ withText = true, className }: LogoProps) {
       {withText && (
         <span className="leading-tight">
           <span className="block text-base font-bold tracking-tight">J-CARS</span>
-          <span className="block text-xs text-muted">Službena vozila</span>
+          <TodayLabel />
         </span>
       )}
     </span>
+  )
+}
+
+function TodayLabel() {
+  const today = useToday()
+  return (
+    <time dateTime={today} className="block text-xs text-muted">
+      {weekdayDateLabel(today)}
+    </time>
   )
 }

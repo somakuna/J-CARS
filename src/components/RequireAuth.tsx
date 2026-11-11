@@ -4,7 +4,7 @@ import { FullScreenLoader } from '@/components/ui/Spinner'
 import { PASSWORD_RESET_PATH } from '@/lib/auth'
 import { useAuth } from '@/lib/authContext'
 
-/** Propušta samo prijavljenog administratora; ostale šalje na prijavu. */
+/** Propušta samo prijavljenog korisnika; ostale šalje na prijavu. */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading, passwordRecovery } = useAuth()
   const location = useLocation()

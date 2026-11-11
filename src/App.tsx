@@ -11,6 +11,7 @@ import { ActivitiesPage } from '@/pages/ActivitiesPage'
 import { CalendarPage } from '@/pages/CalendarPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { EditActivityPage } from '@/pages/EditActivityPage'
+import { ExportPage } from '@/pages/ExportPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { NewActivityPage } from '@/pages/NewActivityPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -60,6 +61,7 @@ export default function App() {
                     <Route path="aktivnosti/:id/uredi" element={<EditActivityPage />} />
                     <Route path="postavke" element={<SettingsPage />} />
                     <Route path="postavke/obavijesti" element={<NotificationSettingsPage />} />
+                    <Route path="postavke/izvoz" element={<ExportPage />} />
                     <Route path="*" element={<NotFoundPage />} />
                   </Route>
                 </Routes>

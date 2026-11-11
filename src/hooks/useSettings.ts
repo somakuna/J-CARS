@@ -6,7 +6,7 @@ import {
   updateSettings,
   type SettingsPatch,
 } from '@/data/settings'
-import type { NotificationChannel, Settings } from '@/types/database'
+import type { Settings } from '@/types/database'
 import { settingsKeys } from './queryKeys'
 
 export function useSettings() {
@@ -38,7 +38,7 @@ export function useUpdateSettings() {
 export function useSendTestNotification() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (channel: NotificationChannel) => sendTestNotification(channel),
+    mutationFn: () => sendTestNotification(),
     // I neuspjeli pokušaj zapisuje se u evidenciju.
     onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.logs }),
   })

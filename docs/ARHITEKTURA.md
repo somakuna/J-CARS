@@ -10,11 +10,10 @@ Specifikacija funkcionalnosti nalazi se u [J-CARS.md](../J-CARS.md).
 ```
 J-CARS/
 ├─ api/                         Vercel serverless funkcije (Node) – SAMO serverska logika
-│  ├─ _lib/                     zajednički serverski kod (Supabase admin klijent, e-mail, push)
+│  ├─ _lib/                     zajednički serverski kod (Supabase admin klijent, push, podsjetnici)
 │  ├─ cron/check-deadlines.ts   dnevna provjera rokova (Vercel Cron)
 │  └─ notifications/
-│     ├─ test-email.ts          testni e-mail (Resend)
-│     └─ test-push.ts           testna push obavijest (web-push + VAPID)
+│     └─ test.ts                probna push obavijest (web-push + VAPID)
 ├─ shared/                      kod koji koriste i frontend i api (izračun rokova, statusi, datumi)
 ├─ public/                      statične datoteke: logo, PWA ikone
 ├─ src/
@@ -26,7 +25,7 @@ J-CARS/
 │  ├─ hooks/                    React hookovi (podaci, push pretplata…)
 │  ├─ lib/                      tema, datumi, statusi, CSV izvoz, Supabase klijent
 │  ├─ types/                    TypeScript tipovi baze
-│  └─ sw.ts                     Service Worker (cache + push) – od Faze 6/7
+│  └─ main.tsx                  ulaz; registracija Service Workera (public/sw.js)
 ├─ supabase/migrations/         SQL migracije (tablice, indeksi, RLS)
 ├─ docs/ARHITEKTURA.md
 ├─ vercel.json                  rewrites za SPA + raspored Cron zadatka
@@ -38,20 +37,19 @@ J-CARS/
 ```
  Preglednik / instalirana PWA                     Vercel                         Supabase
 ┌──────────────────────────────┐   HTTPS   ┌────────────────────────┐   ┌──────────────────────┐
-│ React SPA (Vite, Tailwind)   │──────────▶│ statični build (dist)  │   │ Auth (1 administrator)│
+│ React SPA (Vite, Tailwind)   │──────────▶│ statični build (dist)  │   │ Auth (više korisnika) │
 │  • supabase-js (anon ključ)  │───────────┼────────────────────────┼──▶│ PostgreSQL + RLS      │
 │  • Service Worker (push)     │           │ /api/* serverless      │──▶│                       │
 └──────────────────────────────┘           │  • service role ključ  │   └──────────────────────┘
-              ▲                            │  • Resend API ključ    │──▶ Resend (e-mail)
-              │      Web Push (VAPID)      │  • VAPID privatni ključ│──▶ Push servisi (FCM, APNs, Mozilla)
+              ▲                                          │      Web Push (VAPID)      │  • VAPID privatni ključ│──▶ Push servisi (FCM, APNs, Mozilla)
               └────────────────────────────│ Vercel Cron 1×/dan     │
                                            └────────────────────────┘
 ```
 
 **Načela**
 
-- **CRUD ide izravno iz preglednika u Supabase** uz anon ključ. Sigurnost osigurava Row Level Security – svaki red ima `user_id` i dostupan je samo prijavljenom administratoru.
-- **Sve osjetljivo radi se na serveru** (`/api/*`): slanje e-maila, slanje push obavijesti, dnevna provjera. Service role ključ, Resend ključ i VAPID privatni ključ postoje samo kao Vercel varijable okruženja.
+- **CRUD ide izravno iz preglednika u Supabase** uz anon ključ. Sigurnost osigurava Row Level Security – svaki red ima `user_id` i dostupan je samo korisniku koji ga je unio. Korisnike dodaje administrator u Supabaseu.
+- **Sve osjetljivo radi se na serveru** (`/api/*`): slanje push obavijesti, dnevna provjera. Secret ključ i VAPID privatni ključ postoje samo kao Vercel varijable okruženja.
 - **Izvedeni podaci vozila računaju se u bazi**, ne u aplikaciji. Pogled `vehicle_overview` iz aktivnosti izračunava stvarni istek registracije, trenutne gume, kilometražu, zadnji i sljedeći servis. Zato brisanje ili ispravak aktivnosti nikad ne ostavlja neispravne podatke u profilu vozila.
 - **Dnevna provjera** (`/api/cron/check-deadlines`) poziva Vercel Cron jednom dnevno, zaštićena tajnim `CRON_SECRET`. Radi neovisno o tome je li aplikacija otvorena.
 - **Bez nepotrebnih slojeva**: nema vlastitog REST API-ja za CRUD, nema globalnog state managera. Za dohvat i keširanje podataka koristi se TanStack Query.
@@ -59,7 +57,7 @@ J-CARS/
 ## 3. Baza podataka (prijedlog)
 
 Sve tablice imaju `user_id uuid not null default auth.uid()` → RLS pravilo `user_id = auth.uid()`.
-Registracija novih korisnika u Supabase Auth bit će isključena; postoji samo jedan administrator.
+Javna registracija u Supabase Auth je isključena; korisnike dodaje administrator (Supabase → Authentication → Users → Add user, uz „Auto Confirm User”). Svaki korisnik vidi samo svoja vozila i aktivnosti.
 
 ### `vehicles`
 | stupac | tip | napomena |
@@ -153,8 +151,8 @@ i rokove u sljedećih 60 dana; kalendar uz rokove prikazuje sve aktivnosti (i ne
 `shared/reminders.ts`: za svaku obvezu s datumom bira se **najmanji uključeni interval koji je dosegnut**
 (dana do roka ≤ interval: 30/14/7/1/0) i šalje se samo ako u `notification_logs` za isti rok, interval i kanal
 još nema zapisa sa statusom `sent`. Propušteni dan ne gubi podsjetnik, a isti se nikad ne šalje dvaput;
-istekli rok dobije najviše jedan zaostali podsjetnik. Servis zadan samo kilometražom nema e-mail/push – upozorenje je u aplikaciji.
-Jedan korisnik dobiva **jednu** poruku po kanalu dnevno sa svim rokovima. Svaka stavka se bilježi (`sent`/`failed`).
+istekli rok dobije najviše jedan zaostali podsjetnik. Servis zadan samo kilometražom nema push – upozorenje je u aplikaciji.
+Jedan korisnik dobiva **jednu** push poruku dnevno (na svaki uređaj) sa svim rokovima. Svaka stavka se bilježi (`sent`/`failed`).
 Push pretplate koje push servis odbije s 404/410 brišu se automatski.
 
 
@@ -166,17 +164,47 @@ Push pretplate koje push servis odbije s 404/410 brišu se automatski.
 | 3 | Vozila: dodavanje, uređivanje, brisanje, popis, pretraga, filtri, profil | ✅ |
 | 4 | Aktivnosti: 4 vrste, jedinstveni obrazac, povijest, uređivanje/brisanje (prilozi uklonjeni na zahtjev) | ✅ |
 | 5 | Nadzorna ploča (statistike, obveze), kalendar (mjesečni prikaz, nadolazeće, prošlo) | ✅ |
-| 6 | Postavke obavijesti, Resend, Web Push, Service Worker, dnevni Cron, evidencija | ✅ |
+| 6 | Postavke obavijesti, Web Push, Service Worker, dnevni Cron, evidencija (e-mail/Resend kasnije uklonjen) | ✅ |
 | 7 | PWA: manifest, ikone, splash, instalacija, iOS napomene | ✅ |
-| 8 | Testiranje, sigurnosna provjera, CSV/JSON izvoz, Vercel deployment | |
+| 8 | Testiranje, sigurnosna provjera, CSV/JSON izvoz, Vercel deployment | ✅ |
+
+### Izvoz podataka (Faza 8)
+
+Postavke → Izvoz podataka (`/postavke/izvoz`):
+
+- **Vozila (CSV)** i **Aktivnosti (CSV)** – za Excel u hrvatskim postavkama: odvajanje `;`, UTF-8 s BOM-om, datumi DD.MM.YYYY,
+  kilometri kao brojevi bez razdjelnika. Tekst koji počinje s `= + - @` dobiva apostrof (zaštita od CSV injectiona).
+- **Sigurnosna kopija (JSON)** – izvorni zapisi (`vehicles`, `activities`, `settings`, `notification_logs`) s oznakom
+  `format: "j-cars-backup"`, `version: 1`. Push pretplate se ne izvoze (vezane su uz uređaj i sadrže njegove ključeve).
+- Dohvat ide po stranicama od 1000 redaka (ograničenje Supabasea), datoteka se izrađuje u pregledniku.
+  Na iPhoneu/iPadu otvara se izbornik „Dijeli” (spremanje u Datoteke), drugdje obično preuzimanje.
+
+### Samo push obavijesti, više korisnika (nakon Faze 8)
+
+- E-mail obavijesti (Resend) uklonjene: migracija `20261111000005` briše `settings.email_address`,
+  `settings.email_notifications_enabled` i e-mail zapise u evidenciji; `notification_type` može biti samo `push`.
+- Varijable `RESEND_API_KEY`, `EMAIL_FROM` i `APP_URL` više nisu potrebne.
+- Stanje „Uključeno na ovom uređaju” vrijedi samo ako pretplata pripada prijavljenom korisniku; ako ju je spremio drugi korisnik,
+  pri uključivanju se izrađuje nova pretplata.
+- U zaglavlju ispod „J-CARS” prikazuje se današnji datum (npr. „Srijeda, 11.11.2026”), osvježava se sam.
+
+### Sigurnosna provjera (Faza 8)
+
+- RLS uključen na svim tablicama, pravila samo za `authenticated` i `(select auth.uid()) = user_id`;
+  `anon` nema nikakve ovlasti; `vehicle_overview` je `security_invoker`.
+- Registracija novih korisnika isključena (`disable_signup: true`), anonimna prijava isključena.
+- Tajni ključevi samo u `/api` (provjereno pretraživanjem `dist/`), `.env.local` nije u Gitu.
+- Cron: tajna se uspoređuje u konstantnom vremenu. Probne obavijesti: najviše jedna u 60 s (429).
+- HTTP zaglavlja (`vercel.json`): `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`,
+  `Permissions-Policy`, CSP `frame-ancestors 'none'`; `/api` bez predmemorije, `/assets` immutable.
+- `npm audit`: 0 ranjivosti.
 
 ## 6. Računi, ključevi i servisi koje treba pripremiti
 
 | Servis | Što treba | Gdje se koristi |
 |---|---|---|
-| **Supabase** (besplatni plan je dovoljan) | novi projekt; `Project URL`, publishable ključ (`sb_publishable_…`), secret ključ (`sb_secret_…`, zamjena za service_role); korisnik administrator (Auth → Users → Add user); isključiti „Allow new users to sign up” | URL + publishable → frontend; secret → samo Vercel |
+| **Supabase** (besplatni plan je dovoljan) | novi projekt; `Project URL`, publishable ključ (`sb_publishable_…`), secret ključ (`sb_secret_…`, zamjena za service_role); korisnici (Auth → Users → Add user); „Allow new users to sign up” ostaje isključeno | URL + publishable → frontend; secret → samo Vercel |
 | **Vercel** | račun povezan s Git repozitorijem (GitHub/GitLab) | hosting + `/api` + Cron |
-| **Resend** | račun, API ključ, **verificirana domena** (DNS zapisi) za adresu pošiljatelja, npr. `obavijesti@vasadomena.hr`. Bez domene Resend dopušta slanje samo na vlastitu adresu računa. | samo Vercel |
 | **VAPID ključevi** | generiraju se jednom: `npx web-push generate-vapid-keys` | javni → frontend; privatni → samo Vercel |
 | **CRON_SECRET** | nasumični niz od najmanje 16 znakova | zaštita Cron endpointa |
 | **Git repozitorij** | za Vercel deployment | |
@@ -190,15 +218,13 @@ Push pretplate koje push servis odbije s 404/410 brišu se automatski.
 | `VITE_VAPID_PUBLIC_KEY` | frontend | ne |
 | `SUPABASE_URL` | api | ne |
 | `SUPABASE_SECRET_KEY` | api | **da** |
-| `RESEND_API_KEY` | api | **da** |
-| `EMAIL_FROM` | api | ne |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | api | privatni **da** |
 | `CRON_SECRET` | api | **da** |
-| `APP_URL` | api | ne (poveznice u e-mailu) |
 
 ## 7. Push obavijesti – podrška po platformama
 
 - **Android (Chrome, Edge, Samsung Internet, Firefox)**: rade u pregledniku i u instaliranoj PWA.
 - **Windows / macOS / Linux (Chrome, Edge, Firefox, Safari 16+)**: rade u pregledniku i u instaliranoj aplikaciji.
 - **iPhone / iPad (iOS/iPadOS 16.4+)**: rade **samo** ako je aplikacija dodana na početni zaslon (Safari → Dijeli → Dodaj na početni zaslon) i otvorena odatle. U običnoj kartici Safarija push nije dostupan. Dozvola se može zatražiti samo nakon dodira korisnika.
-- Ako uređaj ne podržava push, aplikacija to jasno prikazuje u Postavke → Obavijesti, a e-mail obavijesti i dalje rade.
+- Ako uređaj ne podržava push, aplikacija to jasno prikazuje u Postavke → Obavijesti. Podsjetnici se tada vide samo u aplikaciji (nadzorna ploča, kalendar).
+- Pri odjavi se push na tom uređaju isključuje, kako drugi korisnik na istom uređaju ne bi dobivao tuđe podsjetnike.

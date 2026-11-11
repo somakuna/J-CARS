@@ -11,6 +11,7 @@ import { errorMessage } from '@/lib/errors'
 
 type Mode = 'login' | 'reset'
 
+/** Prijava korisnika. Račune dodaje administrator u Supabaseu (Authentication → Users). */
 export function LoginPage() {
   const { session, signIn, sendPasswordReset } = useAuth()
   const location = useLocation()
@@ -56,8 +57,8 @@ export function LoginPage() {
       <AuthLayout title="Zaboravljena lozinka" description="Poslat ćemo vam poveznicu za postavljanje nove lozinke.">
         {resetSent ? (
           <Alert tone="ok">
-            Ako adresa pripada administratoru, poveznica je poslana na <strong>{email.trim()}</strong>. Provjerite i
-            mapu neželjene pošte.
+            Ako postoji račun s tom adresom, poveznica je poslana na <strong>{email.trim()}</strong>. Provjerite i mapu
+            neželjene pošte.
           </Alert>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -89,7 +90,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthLayout title="Prijava" description="Prijavite se administratorskim računom.">
+    <AuthLayout title="Prijava" description="Prijavite se svojim računom. Račun vam otvara administrator.">
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <Alert tone="danger">{error}</Alert>}
         <TextField
