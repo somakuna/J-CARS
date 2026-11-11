@@ -16,6 +16,7 @@ import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { TypeIcon } from '@/components/activities/ActivitySummaryBar'
 import { LicensePlate } from '@/components/LicensePlate'
+import { PushPrompt } from '@/components/PushPrompt'
 import { buttonClasses } from '@/components/ui/buttonClasses'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -59,6 +60,7 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader title="Nadzorna ploča" description={todayLabel(today)} />
+      <PushPrompt />
 
       {error ? (
         <Card>
